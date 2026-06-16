@@ -1,0 +1,5 @@
+adapter: adapter-agentic
+listen: ":8032"
+dispatch_url: http://127.0.0.1:8010
+slot_manager_url: http://127.0.0.1:8013
+upstream_type: agentic
