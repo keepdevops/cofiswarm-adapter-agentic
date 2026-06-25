@@ -12,6 +12,7 @@ import (
 
 	"github.com/keepdevops/cofiswarm-adapter-agentic/internal/bus"
 	"github.com/keepdevops/cofiswarm-adapter-agentic/internal/httpapi"
+	"github.com/keepdevops/cofiswarm-observer-sdk/pkg/buspresence"
 	"github.com/keepdevops/cofiswarm-observer-sdk/pkg/servicecomponent"
 )
 
@@ -32,6 +33,8 @@ func main() {
 	}
 	srv := httpapi.New(cfg)
 
+	ID := "adapter-" + adapterName
+
 	// Optional: announce presence on the observer bus alongside the HTTP API (default-off).
 	// COFISWARM_NATS_URL=nats://host:4222 enables it.
 	var comp *servicecomponent.Component
@@ -41,7 +44,7 @@ func main() {
 			log.Printf("bus connect %s: %v (running without presence)", url, cErr)
 		} else {
 			defer nc.Close()
-			comp = servicecomponent.New(nc, "adapter-"+adapterName, "adapter-"+adapterName, bus.Routes(adapterName))
+			comp = servicecomponent.New(nc, ID, ID, bus.Routes(adapterName))
 			if sErr := comp.Start(); sErr != nil {
 				log.Printf("bus start: %v (running without presence)", sErr)
 				comp = nil
@@ -49,6 +52,13 @@ func main() {
 				log.Printf("adapter-%s announcing presence via %s", adapterName, url)
 			}
 		}
+	}
+
+	// Carrier presence (broker-free, default-off via COFISWARM_BRIDGE_URL): appear in the
+	// observer live roster over the zmq-bridge without needing a NATS broker.
+	var stopPresence func()
+	if bridge := os.Getenv("COFISWARM_BRIDGE_URL"); bridge != "" {
+		stopPresence = buspresence.StartPresence(bridge, ID, map[string]any{"name": ID})
 	}
 
 	httpSrv := &http.Server{Addr: srv.Addr(), Handler: srv.Handler()}
@@ -66,6 +76,9 @@ func main() {
 	log.Printf("adapter-%s: shutting down", adapterName)
 	if comp != nil {
 		comp.Shutdown() // goodbye -> offline
+	}
+	if stopPresence != nil {
+		stopPresence()
 	}
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
