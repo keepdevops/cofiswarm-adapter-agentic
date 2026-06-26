@@ -1,4 +1,4 @@
-# Per-repo CI — layout + tests (Node 24 / Go 1.22 when present).
+# Per-repo CI — layout + tests (Node 24 / Go 1.25 when present).
 # Install: ./scripts/install-repo-ci.sh [repo-name ...]
 name: ci
 
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-go@v5
         if: hashFiles('go.mod') != ''
         with:
-          go-version: '1.22'
+          go-version: '1.25'
           cache-dependency-path: go.sum
 
       - uses: actions/setup-node@v6

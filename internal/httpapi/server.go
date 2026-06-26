@@ -10,11 +10,11 @@ import (
 )
 
 type Config struct {
-	Adapter         string `yaml:"adapter"`
-	Listen          string `yaml:"listen"`
-	DispatchURL     string `yaml:"dispatch_url"`
-	SlotManagerURL  string `yaml:"slot_manager_url"`
-	UpstreamType    string `yaml:"upstream_type"`
+	Adapter        string `yaml:"adapter"`
+	Listen         string `yaml:"listen"`
+	DispatchURL    string `yaml:"dispatch_url"`
+	SlotManagerURL string `yaml:"slot_manager_url"`
+	UpstreamType   string `yaml:"upstream_type"`
 }
 
 func Load(path string) (Config, error) {

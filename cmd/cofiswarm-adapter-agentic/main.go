@@ -61,7 +61,14 @@ func main() {
 		stopPresence = buspresence.StartPresence(bridge, ID, map[string]any{"name": ID})
 	}
 
-	httpSrv := &http.Server{Addr: srv.Addr(), Handler: srv.Handler()}
+	httpSrv := &http.Server{
+		Addr:              srv.Addr(),
+		Handler:           srv.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	go func() {
 		log.Printf("adapter-%s on %s", adapterName, srv.Addr())
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
