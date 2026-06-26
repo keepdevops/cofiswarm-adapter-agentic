@@ -10,10 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/keepdevops/cofiswarm-adapter-agentic/internal/bus"
 	"github.com/keepdevops/cofiswarm-adapter-agentic/internal/httpapi"
-	"github.com/keepdevops/cofiswarm-observer-sdk/pkg/buspresence"
-	"github.com/keepdevops/cofiswarm-observer-sdk/pkg/servicecomponent"
 )
 
 const adapterName = "agentic"
@@ -33,33 +30,8 @@ func main() {
 	}
 	srv := httpapi.New(cfg)
 
-	ID := "adapter-" + adapterName
-
-	// Optional: announce presence on the observer bus alongside the HTTP API (default-off).
-	// COFISWARM_NATS_URL=nats://host:4222 enables it.
-	var comp *servicecomponent.Component
-	if url := os.Getenv("COFISWARM_NATS_URL"); url != "" {
-		nc, cErr := servicecomponent.Connect(url, "cofiswarm-adapter-"+adapterName)
-		if cErr != nil {
-			log.Printf("bus connect %s: %v (running without presence)", url, cErr)
-		} else {
-			defer nc.Close()
-			comp = servicecomponent.New(nc, ID, ID, bus.Routes(adapterName))
-			if sErr := comp.Start(); sErr != nil {
-				log.Printf("bus start: %v (running without presence)", sErr)
-				comp = nil
-			} else {
-				log.Printf("adapter-%s announcing presence via %s", adapterName, url)
-			}
-		}
-	}
-
-	// Carrier presence (broker-free, default-off via COFISWARM_BRIDGE_URL): appear in the
-	// observer live roster over the zmq-bridge without needing a NATS broker.
-	var stopPresence func()
-	if bridge := os.Getenv("COFISWARM_BRIDGE_URL"); bridge != "" {
-		stopPresence = buspresence.StartPresence(bridge, ID, map[string]any{"name": ID})
-	}
+	// Optional observer-bus presence (NATS + broker-free carrier), default-off via env.
+	pres := startPresence("adapter-" + adapterName)
 
 	httpSrv := &http.Server{
 		Addr:              srv.Addr(),
@@ -81,12 +53,7 @@ func main() {
 	defer stop()
 	<-ctx.Done()
 	log.Printf("adapter-%s: shutting down", adapterName)
-	if comp != nil {
-		comp.Shutdown() // goodbye -> offline
-	}
-	if stopPresence != nil {
-		stopPresence()
-	}
+	pres.Shutdown()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(shutCtx); err != nil {
