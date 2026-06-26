@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -106,6 +107,20 @@ func TestChatCompletionsPost(t *testing.T) {
 	}
 	if got["bytes"].(float64) != float64(len("hello")) {
 		t.Fatalf("bytes = %v, want %d", got["bytes"], len("hello"))
+	}
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
+
+func TestChatCompletionsBodyReadError(t *testing.T) {
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", errReader{})
+	New(testConfig()).Handler().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
 	}
 }
 
