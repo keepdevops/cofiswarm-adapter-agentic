@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 
@@ -36,10 +37,12 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Printf("httpapi: /healthz write: %v", err)
+		}
 	})
 	mux.HandleFunc("/v1/info", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(s.cfg)
+		writeJSON(w, "/v1/info", s.cfg)
 	})
 	mux.HandleFunc("/v1/chat/completions", s.chatCompletions)
 	return mux
@@ -50,11 +53,26 @@ func (s *Server) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	body, _ := io.ReadAll(r.Body)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("httpapi: /v1/chat/completions read body: %v", err)
+		http.Error(w, "cannot read request body", http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, "/v1/chat/completions", map[string]any{
 		"adapter": s.cfg.Adapter, "stub": true,
 		"dispatch_url": s.cfg.DispatchURL,
 		"note":         "forward to cofiswarm-dispatch in production",
 		"bytes":        len(body),
 	})
+}
+
+// writeJSON encodes v to w, logging any encode error. The response status is already
+// committed by the time Encode runs, so logging is the only recourse — but we never
+// swallow the failure silently.
+func writeJSON(w http.ResponseWriter, route string, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("httpapi: %s encode response: %v", route, err)
+	}
 }
