@@ -27,6 +27,20 @@ func Load(path string) (Config, error) {
 	return c, yaml.Unmarshal(b, &c)
 }
 
+// publicInfo is the curated view served from /v1/info. It deliberately omits internal
+// topology (dispatch_url, slot_manager_url) so the unauthenticated endpoint does not
+// disclose where the adapter forwards traffic.
+type publicInfo struct {
+	Adapter      string `json:"adapter"`
+	Listen       string `json:"listen"`
+	UpstreamType string `json:"upstream_type"`
+}
+
+// PublicInfo returns the subset of the config safe to expose publicly.
+func (c Config) PublicInfo() publicInfo {
+	return publicInfo{Adapter: c.Adapter, Listen: c.Listen, UpstreamType: c.UpstreamType}
+}
+
 type Server struct{ cfg Config }
 
 func New(cfg Config) *Server { return &Server{cfg: cfg} }
@@ -42,7 +56,7 @@ func (s *Server) Handler() http.Handler {
 		}
 	})
 	mux.HandleFunc("/v1/info", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, "/v1/info", s.cfg)
+		writeJSON(w, "/v1/info", s.cfg.PublicInfo())
 	})
 	mux.HandleFunc("/v1/chat/completions", s.chatCompletions)
 	return mux

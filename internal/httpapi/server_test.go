@@ -73,7 +73,7 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
-func TestInfoReturnsConfig(t *testing.T) {
+func TestInfoReturnsPublicView(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
 	New(testConfig()).Handler().ServeHTTP(rr, req)
@@ -81,12 +81,18 @@ func TestInfoReturnsConfig(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
 	}
-	var got Config
+	var got map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got != testConfig() {
-		t.Fatalf("got %+v, want %+v", got, testConfig())
+	if got["adapter"] != "adapter-agentic" || got["upstream_type"] != "agentic" || got["listen"] != ":8032" {
+		t.Fatalf("unexpected public view: %+v", got)
+	}
+	// Internal topology must not leak from an unauthenticated endpoint.
+	for _, leaked := range []string{"dispatch_url", "slot_manager_url"} {
+		if _, ok := got[leaked]; ok {
+			t.Fatalf("%s leaked in /v1/info: %+v", leaked, got)
+		}
 	}
 }
 
