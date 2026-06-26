@@ -91,8 +91,9 @@ func TestInfoReturnsConfig(t *testing.T) {
 }
 
 func TestChatCompletionsPost(t *testing.T) {
+	payload := `{"model":"gpt-x","messages":[{"role":"user","content":"hi"}]}`
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader("hello"))
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(payload))
 	New(testConfig()).Handler().ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
@@ -105,8 +106,35 @@ func TestChatCompletionsPost(t *testing.T) {
 	if got["adapter"] != "adapter-agentic" || got["stub"] != true {
 		t.Fatalf("unexpected body: %+v", got)
 	}
-	if got["bytes"].(float64) != float64(len("hello")) {
-		t.Fatalf("bytes = %v, want %d", got["bytes"], len("hello"))
+	if got["model"] != "gpt-x" || got["messages"].(float64) != 1 {
+		t.Fatalf("echoed request mismatch: %+v", got)
+	}
+	if got["bytes"].(float64) != float64(len(payload)) {
+		t.Fatalf("bytes = %v, want %d", got["bytes"], len(payload))
+	}
+}
+
+func TestChatCompletionsValidation(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"invalid json", `{not json`},
+		{"missing model", `{"messages":[{"role":"user","content":"hi"}]}`},
+		{"no messages", `{"model":"gpt-x","messages":[]}`},
+		{"bad role", `{"model":"gpt-x","messages":[{"role":"wizard","content":"hi"}]}`},
+		{"empty content", `{"model":"gpt-x","messages":[{"role":"user","content":""}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(tc.body))
+			New(testConfig()).Handler().ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d (body: %s)", rr.Code, http.StatusBadRequest, rr.Body.String())
+			}
+		})
 	}
 }
 

@@ -59,10 +59,21 @@ func (s *Server) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot read request body", http.StatusBadRequest)
 		return
 	}
+	var req chatRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	writeJSON(w, "/v1/chat/completions", map[string]any{
 		"adapter": s.cfg.Adapter, "stub": true,
 		"dispatch_url": s.cfg.DispatchURL,
 		"note":         "forward to cofiswarm-dispatch in production",
+		"model":        req.Model,
+		"messages":     len(req.Messages),
 		"bytes":        len(body),
 	})
 }
